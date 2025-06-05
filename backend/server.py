@@ -307,6 +307,16 @@ async def start_bot(background_tasks: BackgroundTasks):
         return {"message": "Bot iniciando..."}
     return {"message": "Bot já está rodando"}
 
+@api_router.post("/bot/stop")
+async def stop_bot():
+    """Stop Discord bot"""
+    global bot_running
+    if bot_running and bot.is_ready():
+        await bot.close()
+        bot_running = False
+        return {"message": "Bot desligado com sucesso"}
+    return {"message": "Bot já está desligado"}
+
 async def run_bot(token: str):
     """Run Discord bot in background"""
     try:
