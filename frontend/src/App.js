@@ -565,6 +565,59 @@ const Dashboard = () => {
         </div>
       </div>
 
+      {/* Transactions Section */}
+      <div className="bg-white rounded-lg shadow-md p-6 mt-8">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">💳 Transações de Pagamento</h2>
+        <div className="space-y-3 max-h-96 overflow-y-auto">
+          {transactions.length === 0 ? (
+            <p className="text-gray-500 text-center py-4">Nenhuma transação ainda</p>
+          ) : (
+            transactions.map((transaction) => (
+              <div key={transaction.id} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-gray-900">
+                      {transaction.metadata?.product_name || 'Produto'}
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      Discord User: {transaction.discord_user_id}
+                    </p>
+                    <p className="text-green-600 font-bold">
+                      R$ {transaction.amount.toFixed(2)}
+                    </p>
+                    <div className="flex items-center mt-2 space-x-4">
+                      <span className={`text-xs px-2 py-1 rounded ${
+                        transaction.payment_status === 'paid' 
+                          ? 'bg-green-100 text-green-800' 
+                          : transaction.payment_status === 'pending'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {transaction.payment_status}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {new Date(transaction.created_at).toLocaleString()}
+                      </span>
+                      {transaction.delivered && (
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                          Entregue
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        <button
+          onClick={fetchTransactions}
+          className="mt-4 w-full bg-purple-500 hover:bg-purple-600 text-white py-2 rounded-lg"
+        >
+          🔄 Atualizar Transações
+        </button>
+      </div>
+
       {/* Instructions */}
       <div className="bg-yellow-50 border-l-4 border-yellow-400 p-6 mt-8">
         <h3 className="text-lg font-semibold text-yellow-800 mb-2">📝 Como usar:</h3>
