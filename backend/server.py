@@ -17,6 +17,9 @@ import discord
 from discord.ext import commands
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 
+# Stripe payments imports
+from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
