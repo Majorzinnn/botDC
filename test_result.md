@@ -210,12 +210,10 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Discord Bot Integration with AI"
-    - "Product Management API"
-    - "Discord Bot Dashboard"
+    - "Discord Bot Integration with AI" # Still needs privileged intents configuration
   stuck_tasks:
-    - "Discord Bot Integration with AI" # Needs privileged intents configuration
-  test_all: true
+    - "Discord Bot Integration with AI" # Needs privileged intents configuration in Discord Developer Portal
+  test_all: false
   test_priority: "high_first"
 
 agent_communication:
