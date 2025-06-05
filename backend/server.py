@@ -437,6 +437,212 @@ async def update_guild_config(guild_id: str, config_data: dict):
     )
     return {"message": "Configuração atualizada"}
 
+# Payment APIs
+@api_router.post("/payments/checkout")
+async def create_checkout_session(purchase: Purchase):
+    """Create Stripe checkout session for product purchase"""
+    try:
+        # Get product details
+        product = await db.products.find_one({"id": purchase.product_id, "active": True})
+        if not product:
+            raise HTTPException(status_code=404, detail="Produto não encontrado")
+        
+        # Check stock
+        if product.get("stock", 0) < purchase.quantity:
+            raise HTTPException(status_code=400, detail="Estoque insuficiente")
+        
+        # Calculate total amount
+        amount = float(product["price"]) * purchase.quantity
+        
+        # Initialize Stripe
+        stripe_checkout = StripeCheckout(api_key=os.environ.get('STRIPE_API_KEY'))
+        
+        # Create checkout session
+        success_url = f"{purchase.origin_url}?session_id={{CHECKOUT_SESSION_ID}}&payment=success"
+        cancel_url = f"{purchase.origin_url}?payment=cancelled"
+        
+        metadata = {
+            "product_id": purchase.product_id,
+            "product_name": product["name"],
+            "discord_user_id": purchase.discord_user_id,
+            "quantity": str(purchase.quantity),
+            "bot_purchase": "true"
+        }
+        
+        checkout_request = CheckoutSessionRequest(
+            amount=amount,
+            currency="brl",
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata=metadata
+        )
+        
+        session_response = await stripe_checkout.create_checkout_session(checkout_request)
+        
+        # Create payment transaction record
+        transaction = PaymentTransaction(
+            session_id=session_response.session_id,
+            product_id=purchase.product_id,
+            discord_user_id=purchase.discord_user_id,
+            amount=amount,
+            currency="brl",
+            metadata=metadata
+        )
+        
+        await db.payment_transactions.insert_one(transaction.dict())
+        
+        return {
+            "url": session_response.url,
+            "session_id": session_response.session_id
+        }
+        
+    except Exception as e:
+        print(f"Erro ao criar checkout: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro ao criar checkout: {str(e)}")
+
+@api_router.get("/payments/status/{session_id}")
+async def get_payment_status(session_id: str):
+    """Check payment status and update transaction"""
+    try:
+        # Get transaction from database
+        transaction = await db.payment_transactions.find_one({"session_id": session_id})
+        if not transaction:
+            raise HTTPException(status_code=404, detail="Transação não encontrada")
+        
+        # If already processed as paid, return status
+        if transaction.get("payment_status") == "paid":
+            return {
+                "payment_status": "paid",
+                "stripe_status": transaction.get("stripe_status"),
+                "delivered": transaction.get("delivered", False)
+            }
+        
+        # Check with Stripe
+        stripe_checkout = StripeCheckout(api_key=os.environ.get('STRIPE_API_KEY'))
+        stripe_status = await stripe_checkout.get_checkout_status(session_id)
+        
+        # Update transaction
+        update_data = {
+            "stripe_status": stripe_status.status,
+            "updated_at": datetime.utcnow()
+        }
+        
+        # If payment is complete, process delivery
+        if stripe_status.payment_status == "paid" and transaction.get("payment_status") != "paid":
+            update_data["payment_status"] = "paid"
+            
+            # Process delivery (deliver product to Discord user)
+            delivery_success = await deliver_product_to_user(transaction)
+            update_data["delivered"] = delivery_success
+            
+            # Update product stock
+            if delivery_success:
+                quantity = int(transaction.get("metadata", {}).get("quantity", 1))
+                await db.products.update_one(
+                    {"id": transaction["product_id"]},
+                    {"$inc": {"stock": -quantity}}
+                )
+        
+        elif stripe_status.status == "expired":
+            update_data["payment_status"] = "expired"
+        
+        # Update transaction in database
+        await db.payment_transactions.update_one(
+            {"session_id": session_id},
+            {"$set": update_data}
+        )
+        
+        return {
+            "payment_status": update_data.get("payment_status", transaction.get("payment_status")),
+            "stripe_status": stripe_status.status,
+            "delivered": update_data.get("delivered", transaction.get("delivered", False))
+        }
+        
+    except Exception as e:
+        print(f"Erro ao verificar status: {e}")
+        raise HTTPException(status_code=500, detail=f"Erro ao verificar status: {str(e)}")
+
+@api_router.get("/payments/transactions")
+async def get_payment_transactions():
+    """Get all payment transactions"""
+    transactions = await db.payment_transactions.find().sort("created_at", -1).limit(100).to_list(100)
+    # Remove sensitive data
+    for transaction in transactions:
+        if '_id' in transaction:
+            del transaction['_id']
+    return transactions
+
+async def deliver_product_to_user(transaction):
+    """Deliver product to Discord user via DM or channel"""
+    try:
+        discord_user_id = transaction.get("discord_user_id")
+        product_id = transaction.get("product_id")
+        
+        # Get product details
+        product = await db.products.find_one({"id": product_id})
+        if not product:
+            return False
+        
+        # Get Discord user
+        try:
+            user = await bot.fetch_user(int(discord_user_id))
+        except:
+            print(f"Usuário Discord {discord_user_id} não encontrado")
+            return False
+        
+        # Create delivery message
+        embed = discord.Embed(
+            title="🎉 Compra Realizada com Sucesso!",
+            description=f"Obrigado por comprar **{product['name']}**!",
+            color=0x00ff00
+        )
+        embed.add_field(name="Produto", value=product['name'], inline=True)
+        embed.add_field(name="Preço", value=f"R$ {product['price']:.2f}", inline=True)
+        embed.add_field(name="Descrição", value=product.get('description', 'N/A'), inline=False)
+        
+        # Add delivery instructions based on product type
+        if product.get('category') == 'streaming':
+            embed.add_field(
+                name="📧 Entrega",
+                value="Suas credenciais de acesso foram enviadas por email. Verifique também a caixa de spam.",
+                inline=False
+            )
+        else:
+            embed.add_field(
+                name="📦 Entrega",
+                value="Seu produto foi processado. Em caso de dúvidas, entre em contato com o suporte.",
+                inline=False
+            )
+        
+        embed.set_footer(text=f"ID da Transação: {transaction.get('session_id')[:8]}...")
+        
+        # Send DM to user
+        try:
+            await user.send(embed=embed)
+            print(f"Produto entregue via DM para {user.name}")
+            return True
+        except discord.Forbidden:
+            # If DM fails, try to send in configured channel
+            print(f"Não foi possível enviar DM para {user.name}, tentando canal público")
+            
+            guild_id = os.environ.get('DISCORD_GUILD_ID')
+            config = await get_bot_config(guild_id)
+            
+            if config and config.get('shop_channel_id'):
+                try:
+                    channel = bot.get_channel(int(config['shop_channel_id']))
+                    if channel:
+                        await channel.send(f"<@{discord_user_id}>", embed=embed)
+                        return True
+                except:
+                    pass
+            
+            return False
+            
+    except Exception as e:
+        print(f"Erro ao entregar produto: {e}")
+        return False
+
 # Legacy routes
 @api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):
