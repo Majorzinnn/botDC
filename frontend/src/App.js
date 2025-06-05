@@ -210,7 +210,9 @@ const Dashboard = () => {
   const [botStatus, setBotStatus] = useState({ running: false, bot_user: null });
   const [products, setProducts] = useState([]);
   const [conversations, setConversations] = useState([]);
+  const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
   const [newProduct, setNewProduct] = useState({
     name: "",
     price: "",
@@ -223,7 +225,91 @@ const Dashboard = () => {
     fetchBotStatus();
     fetchProducts();
     fetchConversations();
+    fetchTransactions();
+    
+    // Check for payment return
+    checkPaymentReturn();
   }, []);
+
+  const checkPaymentReturn = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session_id');
+    const paymentStatus = urlParams.get('payment');
+    
+    if (sessionId && paymentStatus === 'success') {
+      pollPaymentStatus(sessionId);
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  };
+
+  const pollPaymentStatus = async (sessionId, attempts = 0) => {
+    const maxAttempts = 5;
+    const pollInterval = 2000;
+
+    if (attempts >= maxAttempts) {
+      alert('Verificação de pagamento expirou. Verifique o histórico de transações.');
+      return;
+    }
+
+    try {
+      const response = await axios.get(`${API}/payments/status/${sessionId}`);
+      const data = response.data;
+      
+      if (data.payment_status === 'paid') {
+        alert('Pagamento realizado com sucesso! O produto foi entregue.');
+        fetchTransactions();
+        return;
+      } else if (data.stripe_status === 'expired') {
+        alert('Sessão de pagamento expirou.');
+        return;
+      }
+
+      // Continue polling
+      setTimeout(() => pollPaymentStatus(sessionId, attempts + 1), pollInterval);
+    } catch (error) {
+      console.error('Erro ao verificar pagamento:', error);
+      if (attempts < maxAttempts - 1) {
+        setTimeout(() => pollPaymentStatus(sessionId, attempts + 1), pollInterval);
+      }
+    }
+  };
+
+  const fetchTransactions = async () => {
+    try {
+      const response = await axios.get(`${API}/payments/transactions`);
+      setTransactions(response.data);
+    } catch (error) {
+      console.error("Erro ao buscar transações:", error);
+    }
+  };
+
+  const purchaseProduct = async (productId) => {
+    if (!window.confirm('Deseja comprar este produto?')) return;
+    
+    try {
+      setPaymentLoading(true);
+      
+      const discordUserId = prompt('Digite seu Discord User ID:');
+      if (!discordUserId) return;
+      
+      const response = await axios.post(`${API}/payments/checkout`, {
+        product_id: productId,
+        discord_user_id: discordUserId,
+        origin_url: window.location.origin,
+        quantity: 1
+      });
+      
+      if (response.data.url) {
+        window.location.href = response.data.url;
+      }
+    } catch (error) {
+      console.error("Erro ao processar compra:", error);
+      alert(`Erro ao processar compra: ${error.response?.data?.detail || error.message}`);
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
 
   const fetchBotStatus = async () => {
     try {
