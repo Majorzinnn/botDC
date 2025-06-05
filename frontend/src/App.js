@@ -674,6 +674,16 @@ const Dashboard = () => {
               📊 Dashboard
             </button>
             <button
+              onClick={() => setActiveTab('shop')}
+              className={`pb-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'shop'
+                  ? 'border-white text-white'
+                  : 'border-transparent text-indigo-200 hover:text-white hover:border-indigo-300'
+              }`}
+            >
+              🛒 Loja
+            </button>
+            <button
               onClick={() => setActiveTab('features')}
               className={`pb-2 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'features'
