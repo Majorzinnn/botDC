@@ -321,9 +321,18 @@ const Dashboard = () => {
               {loading ? "Iniciando..." : "🚀 Iniciar Bot"}
             </button>
           ) : (
-            <div className="flex items-center text-green-600">
-              <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse mr-2"></span>
-              Bot rodando
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center text-green-600">
+                <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse mr-2"></span>
+                Bot rodando
+              </div>
+              <button
+                onClick={stopBot}
+                disabled={loading}
+                className="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-lg font-medium disabled:opacity-50"
+              >
+                {loading ? "Parando..." : "🛑 Parar Bot"}
+              </button>
             </div>
           )}
           <button
