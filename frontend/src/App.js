@@ -252,6 +252,19 @@ const Dashboard = () => {
     }
   };
 
+  const startBot = async () => {
+    try {
+      setLoading(true);
+      await axios.post(`${API}/bot/start`);
+      setTimeout(fetchBotStatus, 2000);
+    } catch (error) {
+      console.error("Erro ao iniciar bot:", error);
+      alert("Erro ao iniciar bot");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const stopBot = async () => {
     try {
       setLoading(true);
