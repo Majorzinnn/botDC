@@ -252,14 +252,14 @@ const Dashboard = () => {
     }
   };
 
-  const startBot = async () => {
+  const stopBot = async () => {
     try {
       setLoading(true);
-      await axios.post(`${API}/bot/start`);
-      setTimeout(fetchBotStatus, 2000);
+      await axios.post(`${API}/bot/stop`);
+      setTimeout(fetchBotStatus, 1000);
     } catch (error) {
-      console.error("Erro ao iniciar bot:", error);
-      alert("Erro ao iniciar bot");
+      console.error("Erro ao parar bot:", error);
+      alert("Erro ao parar bot");
     } finally {
       setLoading(false);
     }
