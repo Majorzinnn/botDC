@@ -511,6 +511,15 @@ const Dashboard = () => {
                           Estoque: {product.stock}
                         </span>
                       </div>
+                      <div className="flex items-center mt-3 space-x-2">
+                        <button
+                          onClick={() => purchaseProduct(product.id)}
+                          disabled={paymentLoading || product.stock <= 0}
+                          className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm font-medium disabled:opacity-50"
+                        >
+                          {paymentLoading ? "..." : product.stock <= 0 ? "Esgotado" : "💳 Comprar"}
+                        </button>
+                      </div>
                     </div>
                     <button
                       onClick={() => deleteProduct(product.id)}
