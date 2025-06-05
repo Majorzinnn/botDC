@@ -123,29 +123,36 @@ async def process_ai_message(message):
         channel_id = str(message.channel.id)
         session_id = f"{user_id}_{channel_id}"
         
-        # Get or create AI chat session
-        if session_id not in ai_chat_sessions:
-            ai_chat_sessions[session_id] = LlmChat(
-                api_key=os.environ.get('OPENAI_API_KEY'),
-                session_id=session_id,
-                system_message="""Você é um assistente inteligente para um servidor Discord com sistema de loja.
-                
-                Você pode ajudar com:
-                - Adicionar produtos: "adicionar produto [nome] com preço [valor]"
-                - Listar produtos: "mostrar produtos" ou "listar produtos"
-                - Remover produtos: "remover produto [nome]"
-                - Configurar loja: "configurar loja"
-                - Responder perguntas gerais
-                
-                Sempre responda em português de forma amigável e útil. Quando um usuário quiser adicionar um produto, 
-                você deve fazer perguntas para coletar todos os detalhes necessários como nome, preço, descrição, categoria e estoque.
-                
-                Responda sempre de forma clara e direta."""
-            ).with_model("openai", "gpt-4o")
-        
-        # Send message to AI
-        user_message = UserMessage(text=message.content)
-        ai_response = await ai_chat_sessions[session_id].send_message(user_message)
+        # Check if AI is available (has credits)
+        try:
+            # Get or create AI chat session
+            if session_id not in ai_chat_sessions:
+                ai_chat_sessions[session_id] = LlmChat(
+                    api_key=os.environ.get('OPENAI_API_KEY'),
+                    session_id=session_id,
+                    system_message="""Você é um assistente inteligente para um servidor Discord com sistema de loja.
+                    
+                    Você pode ajudar com:
+                    - Adicionar produtos: "adicionar produto [nome] com preço [valor]"
+                    - Listar produtos: "mostrar produtos" ou "listar produtos"
+                    - Remover produtos: "remover produto [nome]"
+                    - Configurar loja: "configurar loja"
+                    - Responder perguntas gerais
+                    
+                    Sempre responda em português de forma amigável e útil. Quando um usuário quiser adicionar um produto, 
+                    você deve fazer perguntas para coletar todos os detalhes necessários como nome, preço, descrição, categoria e estoque.
+                    
+                    Responda sempre de forma clara e direta."""
+                ).with_model("openai", "gpt-4o")
+            
+            # Send message to AI
+            user_message = UserMessage(text=message.content)
+            ai_response = await ai_chat_sessions[session_id].send_message(user_message)
+            
+        except Exception as ai_error:
+            # If AI fails (no credits, API issues), provide helpful fallback
+            print(f"AI Error: {ai_error}")
+            ai_response = await handle_message_without_ai(message.content)
         
         # Check if AI wants to perform an action
         if "adicionar produto" in message.content.lower():
@@ -168,7 +175,36 @@ async def process_ai_message(message):
         
     except Exception as e:
         print(f"Erro ao processar mensagem AI: {e}")
-        await message.channel.send("Desculpe, ocorreu um erro ao processar sua mensagem.")
+        await message.channel.send("Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente ou use os comandos `!produtos` para ver produtos ou `!adicionar_produto` para adicionar produtos.")
+
+async def handle_message_without_ai(message_content):
+    """Handle messages when AI is not available"""
+    message_lower = message_content.lower()
+    
+    if "ola" in message_lower or "oi" in message_lower or "hello" in message_lower:
+        return "Olá! Sou o assistente do servidor. Como a IA está temporariamente indisponível, use os comandos:\n• `!produtos` - Ver produtos\n• `!adicionar_produto [nome] [preço]` - Adicionar produto\n• `!config_canal_ai` - Configurar canal"
+    
+    elif "produto" in message_lower and "adicionar" in message_lower:
+        return "Para adicionar produtos, use: `!adicionar_produto [nome] [preço] [descrição] [categoria] [estoque]`\nExemplo: `!adicionar_produto Netflix 25.99 'Conta Premium' streaming 5`"
+    
+    elif "produto" in message_lower and ("mostrar" in message_lower or "listar" in message_lower):
+        return "Para ver todos os produtos, use o comando: `!produtos`"
+    
+    elif "ajuda" in message_lower or "help" in message_lower:
+        return """🤖 **Comandos Disponíveis:**
+        
+• `!produtos` - Lista todos os produtos
+• `!adicionar_produto [nome] [preço] [desc] [categoria] [estoque]` - Adiciona produto
+• `!config_canal_ai` - Configura este canal para IA
+
+**Exemplos:**
+• `!adicionar_produto Netflix 25.99 "Conta Premium" streaming 5`
+• `!produtos`
+
+*Nota: IA temporariamente indisponível - use comandos diretos*"""
+    
+    else:
+        return f"Recebi sua mensagem: '{message_content}'\n\nComo a IA está indisponível, use:\n• `!ajuda` - Ver comandos\n• `!produtos` - Ver produtos\n• `!adicionar_produto` - Adicionar produto"
 
 async def handle_product_creation(message, ai_response):
     """Handle product creation from AI conversation"""
