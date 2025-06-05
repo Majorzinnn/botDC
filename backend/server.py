@@ -350,6 +350,11 @@ async def get_guild_config(guild_id: str):
     config = await get_bot_config(guild_id)
     if not config:
         raise HTTPException(status_code=404, detail="Configuração não encontrada")
+    
+    # Remove MongoDB ObjectId
+    if '_id' in config:
+        del config['_id']
+    
     return config
 
 @api_router.put("/bot/config/{guild_id}")
