@@ -83,6 +83,27 @@ class Conversation(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     session_id: str
 
+class PaymentTransaction(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    session_id: str
+    product_id: str
+    discord_user_id: str
+    amount: float
+    currency: str = "brl"
+    payment_status: str = "pending"  # pending, paid, failed, expired
+    stripe_status: str = "pending"
+    metadata: Dict[str, Any] = {}
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    delivered: bool = False
+
+class Purchase(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    product_id: str
+    discord_user_id: str
+    origin_url: str
+    quantity: int = 1
+    
 class StatusCheck(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     client_name: str
